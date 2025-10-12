@@ -29,7 +29,10 @@ jobs:
 
     - name: Set Version
       id: version
-      run: echo "version_number=2.6.20282" >> "$GITHUB_OUTPUT"
+      run: |
+        echo "version_number=2.6.20282" >> "$GITHUB_OUTPUT"
+        echo "release_tag=release_2.6.20282_${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+        echo "release_name=Release 2.6.20282 (run ${GITHUB_RUN_NUMBER})" >> "$GITHUB_OUTPUT"
 
     - name: Build Package
       working-directory: ${{ github.workspace }}
@@ -74,7 +77,8 @@ jobs:
       id: version
       run: |
         echo "version_number=2.6.20282" >> "$GITHUB_OUTPUT"
-        echo "version_string=release_2.6.20282" >> "$GITHUB_OUTPUT"
+        echo "release_tag=release_2.6.20282_${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+        echo "release_name=Release 2.6.20282 (run ${GITHUB_RUN_NUMBER})" >> "$GITHUB_OUTPUT"
 
     - name: Create Release
       id: create_release
@@ -82,8 +86,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ steps.version.outputs.version_string }}
-        release_name: ${{ steps.version.outputs.version_string }}
+        tag_name: ${{ steps.version.outputs.release_tag }}
+        release_name: ${{ steps.version.outputs.release_name }}
         body: |
           Auto-generated periodic build.
         draft: false
