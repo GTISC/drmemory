@@ -256,52 +256,6 @@ lib_exit(void *wrapcxt, void *user_data)
         sizeof(module_name) - 1, "%s%s%s", modname == NULL ? "" : modname, \
         modname == NULL ? "" : "!", name);
 
-    // Apply filtering logic (same as lib_entry)
-    bool allowed = false;
-    bool tested = false;
-    for (unsigned int i = 0; (allowed == false) && (i < filter_function_whitelist_len); i++) {
-        tested = true;
-        unsigned int module_name_len_compare;
-        if (filter_function_whitelist[i].is_wildcard)
-            module_name_len_compare = MIN(module_name_len, \
-                filter_function_whitelist[i].func_name_len);
-        else
-            module_name_len_compare = module_name_len;
-
-        if (fast_strcmp(module_name, module_name_len_compare, \
-            filter_function_whitelist[i].func_name, \
-            filter_function_whitelist[i].func_name_len) == 0) {
-            allowed = true;
-        }
-    }
-
-    // Check the blacklist if it was specified instead of a whitelist
-    if (!allowed && filter_function_blacklist_len > 0) {
-        allowed = true;
-        for (unsigned int i = 0; allowed && (i < filter_function_blacklist_len); i++) {
-            tested = true;
-            unsigned int module_name_len_compare;
-            if (filter_function_blacklist[i].is_wildcard)
-                module_name_len_compare = MIN(module_name_len, \
-                    filter_function_blacklist[i].func_name_len);
-            else
-                module_name_len_compare = module_name_len;
-
-            if (fast_strcmp(module_name, module_name_len_compare, \
-                filter_function_blacklist[i].func_name, \
-                filter_function_blacklist[i].func_name_len) == 0) {
-                allowed = false;
-            }
-        }
-    }
-
-    // If filtering was performed and function is not allowed, return early
-    if (tested && !allowed) {
-        if (mod != NULL)
-            dr_free_module_data(mod);
-        return;
-    }
-
     // Try to get return value information from config if available
     drsys_arg_t *ret_arg_config = NULL;
     if (op_use_config.get_value()) {
