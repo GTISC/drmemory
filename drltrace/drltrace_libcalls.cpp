@@ -60,7 +60,7 @@ static void
 free_return_value(void *p)
 {
     drsys_arg_t *ret_val = (drsys_arg_t *) p;
-    global_free(ret_val, sizeof(drsys_arg_t));
+    global_free(ret_val, sizeof(drsys_arg_t), HEAPSTAT_MISC);
 }
 
 static void
@@ -327,7 +327,7 @@ parse_line(const char *line, int line_num)
     if (func_name == NULL) {
         VNOTIFY(0, "unable to parse config file at line %d: %s" NL, line_num, line);
         if (ret_val != NULL)
-        global_free(ret_val, sizeof(drsys_arg_t));
+        global_free(ret_val, sizeof(drsys_arg_t), HEAPSTAT_MISC);
         delete args_vector;
         return false;
     }
