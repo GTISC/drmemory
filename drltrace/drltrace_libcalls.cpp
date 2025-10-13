@@ -60,7 +60,7 @@ static void
 free_return_value(void *p)
 {
     drsys_arg_t *ret_val = (drsys_arg_t *) p;
-    global_free(ret_val, sizeof(drsys_arg_t), HEAPSTAT_MISC);
+    delete ret_val;
 }
 
 static void
