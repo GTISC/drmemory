@@ -126,12 +126,12 @@ print_arg(void *drcontext, drsys_arg_t *arg)
     case DRSYS_TYPE_SIZE_T:       print_simple_value(arg, false); break;
     case DRSYS_TYPE_HMODULE:      print_simple_value(arg, false); break;
 #endif
-    case DRSYS_TYPE_CSTRING:
-        print_string(drcontext, (void *)arg->value, false);
-        break;
-    case DRSYS_TYPE_CWSTRING:
-        print_string(drcontext, (void *)arg->value, true);
-        break;
+    // case DRSYS_TYPE_CSTRING:
+    //     print_string(drcontext, (void *)arg->value, false);
+    //     break;
+    // case DRSYS_TYPE_CWSTRING:
+    //     print_string(drcontext, (void *)arg->value, true);
+    //     break;
     default: {
         if (arg->value == 0)
             dr_fprintf(outf, "<null>");
