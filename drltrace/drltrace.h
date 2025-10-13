@@ -53,5 +53,4 @@
 
 void parse_config(void);
 std::vector<drsys_arg_t *> *libcalls_search(const char *name);
-drsys_arg_t *return_value_search(const char *name);
 void libcalls_hashtable_delete();

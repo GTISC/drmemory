@@ -126,12 +126,12 @@ print_arg(void *drcontext, drsys_arg_t *arg)
     case DRSYS_TYPE_SIZE_T:       print_simple_value(arg, false); break;
     case DRSYS_TYPE_HMODULE:      print_simple_value(arg, false); break;
 #endif
-    // case DRSYS_TYPE_CSTRING:
-    //     print_string(drcontext, (void *)arg->value, false);
-    //     break;
-    // case DRSYS_TYPE_CWSTRING:
-    //     print_string(drcontext, (void *)arg->value, true);
-    //     break;
+    case DRSYS_TYPE_CSTRING:
+        print_string(drcontext, (void *)arg->value, false);
+        break;
+    case DRSYS_TYPE_CWSTRING:
+        print_string(drcontext, (void *)arg->value, true);
+        break;
     default: {
         if (arg->value == 0)
             dr_fprintf(outf, "<null>");
@@ -228,76 +228,6 @@ print_symbolic_args(const char *name, void *wrapcxt, app_pc func)
         if (op_unknown_args.get_value() > 0)
             print_args_unknown_call(func, wrapcxt);
     }
-}
-
-/****************************************************************************
- * Library exit wrapping
- */
-
-static void
-lib_exit(void *wrapcxt, void *user_data)
-{
-    const char *name = (const char *) user_data;
-    ptr_uint_t retval = (ptr_uint_t)drwrap_get_retval(wrapcxt);
-    void *drcontext = drwrap_get_drcontext(wrapcxt);
-    thread_id_t tid = dr_get_thread_id(drcontext);
-
-    // Get module information for the function
-    const char *modname = NULL;
-    app_pc func = drwrap_get_func(wrapcxt);
-    module_data_t *mod = dr_lookup_module(func);
-    if (mod != NULL)
-        modname = dr_module_preferred_name(mod);
-
-    // Try to get return value information from config if available
-    drsys_arg_t *ret_arg_config = NULL;
-    if (op_use_config.get_value()) {
-        ret_arg_config = return_value_search(name);
-    }
-
-    // Create argument structure for the return value
-    drsys_arg_t ret_arg;
-    memset(&ret_arg, 0, sizeof(ret_arg));
-    ret_arg.value = retval;
-    ret_arg.value64 = (uint64)retval;
-    ret_arg.ordinal = -1;  // Special ordinal for return value
-    ret_arg.mode = DRSYS_PARAM_RETVAL;
-    ret_arg.pre = false;
-    ret_arg.size = sizeof(ptr_uint_t);
-    ret_arg.reg = DR_REG_NULL;
-
-    // Use config information if available, otherwise use defaults
-    if (ret_arg_config != NULL) {
-        ret_arg.type = ret_arg_config->type;
-        ret_arg.type_name = ret_arg_config->type_name;
-        ret_arg.arg_name = ret_arg_config->arg_name;
-        if (ret_arg_config->size > 0)
-            ret_arg.size = ret_arg_config->size;
-    } else {
-        // Default fallback
-        ret_arg.type = DRSYS_TYPE_VOID;
-        ret_arg.type_name = "void";
-        ret_arg.arg_name = "retval";
-    }
-
-    // Print thread ID and module!function name
-    if (tid != INVALID_THREAD_ID)
-        dr_fprintf(outf, "~~%d~~ ", tid);
-    else
-        dr_fprintf(outf, "~~Dr.L~~ ");
-
-    // Print module!function name
-    dr_fprintf(outf, "%s%s%s", modname == NULL ? "" : modname,
-            modname == NULL ? "" : "!", name);
-
-    // Print the return value using existing print_arg function
-    print_arg(drcontext, &ret_arg);
-
-    dr_fprintf(outf, "\n");
-
-    // Clean up module data
-    if (mod != NULL)
-        dr_free_module_data(mod);
 }
 
 /****************************************************************************
@@ -410,13 +340,13 @@ iterate_exports(const module_data_t *info, bool add)
         if (func != NULL) {
             if (add) {
                 IF_DEBUG(bool ok =)
-                    drwrap_wrap_ex(func, lib_entry, lib_exit, (void *) sym->name, 0);
+                    drwrap_wrap_ex(func, lib_entry, NULL, (void *) sym->name, 0);
                 ASSERT(ok, "wrap request failed");
                 VNOTIFY(2, "wrapping export %s!%s @" PFX NL,
                        dr_module_preferred_name(info), sym->name, func);
             } else {
                 IF_DEBUG(bool ok =)
-                    drwrap_unwrap(func, lib_entry, lib_exit);
+                    drwrap_unwrap(func, lib_entry, NULL);
                 ASSERT(ok, "unwrap request failed");
             }
         }
