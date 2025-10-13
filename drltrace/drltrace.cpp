@@ -249,13 +249,6 @@ lib_exit(void *wrapcxt, void *user_data)
     if (mod != NULL)
         modname = dr_module_preferred_name(mod);
 
-    // Build the module & function string
-    char module_name[256];
-    memset(module_name, 0, sizeof(module_name));
-    unsigned int module_name_len = (unsigned int)snprintf(module_name, \
-        sizeof(module_name) - 1, "%s%s%s", modname == NULL ? "" : modname, \
-        modname == NULL ? "" : "!", name);
-
     // Try to get return value information from config if available
     drsys_arg_t *ret_arg_config = NULL;
     if (op_use_config.get_value()) {
@@ -294,7 +287,8 @@ lib_exit(void *wrapcxt, void *user_data)
         dr_fprintf(outf, "~~Dr.L~~ ");
 
     // Print module!function name
-    dr_fprintf(outf, module_name);
+    dr_fprintf(outf, "%s%s%s", modname == NULL ? "" : modname,
+            modname == NULL ? "" : "!", name);
 
     // Print the return value using existing print_arg function
     print_arg(drcontext, &ret_arg);
