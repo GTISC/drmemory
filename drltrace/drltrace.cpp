@@ -236,6 +236,7 @@ lib_exit(void *wrapcxt, void *user_data)
     const char *name = (const char *) user_data;
     // blacklist some apis that may lead to crash
     void *drcontext = drwrap_get_drcontext(wrapcxt);
+    module_data_t *mod;
     app_pc retaddr =  NULL;
     DR_TRY_EXCEPT(drcontext, {
         retaddr = drwrap_get_retaddr(wrapcxt);
