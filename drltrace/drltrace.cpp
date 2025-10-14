@@ -238,45 +238,7 @@ lib_exit(void *wrapcxt, void *user_data)
     void *drcontext = drwrap_get_drcontext(wrapcxt);
     thread_id_t tid = dr_get_thread_id(drcontext);
 
-    // Get module information for the function
-    const char *modname = NULL;
-    app_pc func = drwrap_get_func(wrapcxt);
-    module_data_t *mod = dr_lookup_module(func);
-    if (mod != NULL)
-        modname = dr_module_preferred_name(mod);
-
-    // Create argument structure for the return value
-    drsys_arg_t ret_arg;
-    memset(&ret_arg, 0, sizeof(ret_arg));
-    ret_arg.value = retval;
-    ret_arg.value64 = (uint64)retval;
-    ret_arg.ordinal = -1;  // Special ordinal for return value
-    ret_arg.mode = DRSYS_PARAM_RETVAL;
-    ret_arg.pre = false;
-    ret_arg.size = sizeof(ptr_uint_t);
-    ret_arg.reg = DR_REG_NULL;
-
-    // Default fallback
-    ret_arg.type = DRSYS_TYPE_VOID;
-    ret_arg.type_name = "void";
-    ret_arg.arg_name = "retval";
-
-    // Print thread ID and module!function name
-    if (tid != INVALID_THREAD_ID)
-        dr_fprintf(outf, "~~%d~~ ", tid);
-    else
-        dr_fprintf(outf, "~~Dr.L~~ ");
-    dr_fprintf(outf, "%s%s%s", modname == NULL ? "" : modname,
-               modname == NULL ? "" : "!", name);
-
-    // Print the return value using existing print_arg function
-    print_arg(drcontext, &ret_arg);
-
-    dr_fprintf(outf, "\n");
-
-    // Clean up module data
-    if (mod != NULL)
-        dr_free_module_data(mod);
+    dr_fprintf(outf, "~~%d~~ %s returned %d\n", tid, name, retval);
 }
 
 /****************************************************************************
