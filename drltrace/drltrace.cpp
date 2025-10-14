@@ -234,11 +234,11 @@ static void
 lib_exit(void *wrapcxt, void *user_data)
 {
     const char *name = (const char *) user_data;
-    ptr_uint_t retval = (ptr_uint_t)drwrap_get_retval(wrapcxt);
-    void *drcontext = drwrap_get_drcontext(wrapcxt);
-    thread_id_t tid = dr_get_thread_id(drcontext);
+    // ptr_uint_t retval = (ptr_uint_t)drwrap_get_retval(wrapcxt);
+    // void *drcontext = drwrap_get_drcontext(wrapcxt);
+    // thread_id_t tid = dr_get_thread_id(drcontext);
 
-    dr_fprintf(outf, "~~%d~~ %s returned %d\n", tid, name, retval);
+    dr_fprintf(outf, "%s returned\n", name);
 }
 
 /****************************************************************************
