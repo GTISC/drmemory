@@ -235,7 +235,12 @@ lib_exit(void *wrapcxt, void *user_data)
 {
     const char *name = (const char *) user_data;
     dr_fprintf(outf, "start get return value\n");
-    ptr_uint_t retval = (ptr_uint_t)drwrap_get_retval(wrapcxt);
+    ptr_uint_t retval =  NULL;
+    DR_TRY_EXCEPT(drcontext, {
+        retval = (ptr_uint_t)drwrap_get_retval(wrapcxt);
+    }, { /* EXCEPT */
+        retval = NULL;
+    });
     dr_fprintf(outf, "got return value\n");
     dr_fprintf(outf, "start get drcontext\n");
     void *drcontext = drwrap_get_drcontext(wrapcxt);
