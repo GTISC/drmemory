@@ -238,13 +238,16 @@ lib_exit(void *wrapcxt, void *user_data)
     void *drcontext = drwrap_get_drcontext(wrapcxt);
     module_data_t *mod;
     app_pc retaddr =  NULL;
+    dr_fprintf(outf, "start filtering weird api %s\n", name);
     DR_TRY_EXCEPT(drcontext, {
         retaddr = drwrap_get_retaddr(wrapcxt);
     }, { /* EXCEPT */
         retaddr = NULL;
+        dr_fprintf(outf, "<invalid memory>");
     });
     if (retaddr != NULL) {
         mod = dr_lookup_module(retaddr);
+        dr_fprintf(outf, "got module data\n");
         // if (mod != NULL) {
         //     bool from_exe = (mod->start == exe_start);
         //     dr_free_module_data(mod);
@@ -252,6 +255,7 @@ lib_exit(void *wrapcxt, void *user_data)
         //         return;
         // }
     } else {
+        dr_fprintf(outf, "could not get return address\n");
         /* Nearly all of these cases should be things like KiUserCallbackDispatcher
             * or other abnormal transitions.
             * If the user really wants to see everything they can not pass
