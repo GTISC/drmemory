@@ -233,6 +233,8 @@ print_symbolic_args(const char *name, void *wrapcxt, app_pc func)
 static void
 lib_exit(void *wrapcxt, void *user_data)
 {
+    if (wrapcxt == NULL || user_data == NULL)
+        return;
     const char *name = (const char *) user_data;
     ptr_uint_t retval = (ptr_uint_t)drwrap_get_retval(wrapcxt);
     void *drcontext = drwrap_get_drcontext(wrapcxt);
