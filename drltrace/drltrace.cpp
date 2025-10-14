@@ -234,6 +234,11 @@ static void
 lib_exit(void *wrapcxt, void *user_data)
 {
     const char *name = (const char *) user_data;
+    // blacklist some apis that may lead to crash
+    if (strcmp(name, "RtlFreeHeap") == 0) {
+        dr_fprintf(outf, "%s returned\n", name);
+        return;
+    }
     dr_fprintf(outf, "start get return value\n");
     ptr_uint_t retval =  NULL;
     void *drcontext = drwrap_get_drcontext(wrapcxt);
