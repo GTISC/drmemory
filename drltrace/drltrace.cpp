@@ -238,6 +238,8 @@ lib_exit(void *wrapcxt, void *user_data)
     void *drcontext = drwrap_get_drcontext(wrapcxt);
     module_data_t *mod;
     app_pc retaddr =  NULL;
+    if (wrapcxt == NULL || name == NULL)
+        return;
     dr_fprintf(outf, "start filtering weird api %s\n", name);
     DR_TRY_EXCEPT(drcontext, {
         retaddr = drwrap_get_retaddr(wrapcxt);
