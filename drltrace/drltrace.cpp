@@ -230,16 +230,9 @@ print_symbolic_args(const char *name, void *wrapcxt, app_pc func)
     }
 }
 
-/****************************************************************************
- * Library exit wrapping
- */
-
 static void
 lib_exit(void *wrapcxt, void *user_data)
 {
-    // Sanity check parameters
-    if (wrapcxt == NULL || user_data == NULL)
-        return;
     const char *name = (const char *) user_data;
     ptr_uint_t retval = (ptr_uint_t)drwrap_get_retval(wrapcxt);
     void *drcontext = drwrap_get_drcontext(wrapcxt);
@@ -252,12 +245,6 @@ lib_exit(void *wrapcxt, void *user_data)
     if (mod != NULL)
         modname = dr_module_preferred_name(mod);
 
-    // Try to get return value information from config if available
-    drsys_arg_t *ret_arg_config = NULL;
-    if (op_use_config.get_value()) {
-        ret_arg_config = return_value_search(name);
-    }
-
     // Create argument structure for the return value
     drsys_arg_t ret_arg;
     memset(&ret_arg, 0, sizeof(ret_arg));
@@ -269,29 +256,18 @@ lib_exit(void *wrapcxt, void *user_data)
     ret_arg.size = sizeof(ptr_uint_t);
     ret_arg.reg = DR_REG_NULL;
 
-    // Use config information if available, otherwise use defaults
-    if (ret_arg_config != NULL) {
-        ret_arg.type = ret_arg_config->type;
-        ret_arg.type_name = ret_arg_config->type_name;
-        ret_arg.arg_name = ret_arg_config->arg_name;
-        if (ret_arg_config->size > 0)
-            ret_arg.size = ret_arg_config->size;
-    } else {
-        // Default fallback
-        ret_arg.type = DRSYS_TYPE_VOID;
-        ret_arg.type_name = "void";
-        ret_arg.arg_name = "retval";
-    }
+    // Default fallback
+    ret_arg.type = DRSYS_TYPE_VOID;
+    ret_arg.type_name = "void";
+    ret_arg.arg_name = "retval";
 
     // Print thread ID and module!function name
     if (tid != INVALID_THREAD_ID)
         dr_fprintf(outf, "~~%d~~ ", tid);
     else
         dr_fprintf(outf, "~~Dr.L~~ ");
-
-    // Print module!function name
     dr_fprintf(outf, "%s%s%s", modname == NULL ? "" : modname,
-            modname == NULL ? "" : "!", name);
+               modname == NULL ? "" : "!", name);
 
     // Print the return value using existing print_arg function
     print_arg(drcontext, &ret_arg);

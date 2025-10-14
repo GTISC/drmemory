@@ -37,13 +37,10 @@
  */
 
 #define LIBCALLS_TABLE_HASH_BITS 6
-#define RETURN_VALUES_TABLE_HASH_BITS 6
 /* We init the following hashtable to be able to get library call arguments when
  * it is required for printing.
  */
 static hashtable_t libcalls_table;
-/* Hashtable to store return value information for library calls */
-static hashtable_t return_values_table;
 
 static void
 free_args_list(void *p)
@@ -57,31 +54,16 @@ free_args_list(void *p)
 }
 
 static void
-free_return_value(void *p)
-{
-    drsys_arg_t *ret_val = (drsys_arg_t *) p;
-    delete ret_val;
-}
-
-static void
 init_libcalls_hashtable()
 {
     hashtable_init_ex(&libcalls_table, LIBCALLS_TABLE_HASH_BITS, HASH_STRING_NOCASE,
                       false/*!strdup*/, false, free_args_list, NULL, NULL);
 }
 
-static void
-init_return_values_hashtable()
-{
-    hashtable_init_ex(&return_values_table, RETURN_VALUES_TABLE_HASH_BITS, HASH_STRING_NOCASE,
-                      false/*!strdup*/, false, free_return_value, NULL, NULL);
-}
-
 void
 libcalls_hashtable_delete()
 {
     hashtable_delete(&libcalls_table);
-    hashtable_delete(&return_values_table);
 }
 
 std::vector<drsys_arg_t *> *
@@ -90,22 +72,10 @@ libcalls_search(const char *name)
     return (std::vector<drsys_arg_t *> *)hashtable_lookup(&libcalls_table, (void *)name);
 }
 
-drsys_arg_t *
-return_value_search(const char *name)
-{
-    return (drsys_arg_t *)hashtable_lookup(&return_values_table, (void *)name);
-}
-
 static bool
 libcalls_hashtable_insert(const char *name, std::vector<drsys_arg_t *> *args_list)
 {
     return hashtable_add(&libcalls_table, (void *)name, (void *)args_list);
-}
-
-static bool
-return_values_hashtable_insert(const char *name, drsys_arg_t *ret_val)
-{
-    return hashtable_add(&return_values_table, (void *)name, (void *)ret_val);
 }
 
 /****************************************************************************
@@ -283,7 +253,6 @@ parse_line(const char *line, int line_num)
 {
     std::vector<std::string> tokens;
     drsys_arg_t *tmp_arg;
-    drsys_arg_t *ret_val = NULL;
     const char *func_name = NULL;
     int elem_index = 0, tokens_count = 0;
 
@@ -309,41 +278,25 @@ parse_line(const char *line, int line_num)
         /* FIXME i#1948: Currently, we don't support ret value printing and
          * skipping it here.
          */
-        if (elem_index == 0) {
-            /* Parse return value (first token after function name) */
-            ret_val = config_parse_type(*it, -1);
-            ret_val->mode = DRSYS_PARAM_RETVAL; /* Return values are always output */
-        } else if (elem_index == 1) {
-            func_name = it->c_str();
-        } else if (elem_index >= 2) {
-            /* Parse function arguments */
+        if (elem_index >= 2) {
             tmp_arg = config_parse_type(*it, elem_index - 2);
             args_vector->push_back(tmp_arg);
-        }
+        } else if (elem_index == 1)
+            func_name = it->c_str();
 
         elem_index++;
     }
 
-    if (func_name == NULL) {
+    if (func_name == NULL || args_vector->size() <= 0) {
         VNOTIFY(0, "unable to parse config file at line %d: %s" NL, line_num, line);
-        if (ret_val != NULL)
-        global_free(ret_val, sizeof(drsys_arg_t), HEAPSTAT_MISC);
-        delete args_vector;
         return false;
     }
 
-    VNOTIFY(2, "adding %s from config file with %d arguments and return value in the hashtable" NL,
+    VNOTIFY(2, "adding %s from config file with %d arguments in the hashtable" NL,
             func_name, args_vector->size());
-    IF_DEBUG(bool args_ok =)
+    IF_DEBUG(bool ok =)
         libcalls_hashtable_insert(strdup(func_name), args_vector);
-    ASSERT(args_ok, "failed to add libcall in the hashtable");
-
-    /* Insert return value into return values hashtable */
-    if (ret_val != NULL) {
-        IF_DEBUG(bool ret_ok =)
-            return_values_hashtable_insert(strdup(func_name), ret_val);
-        ASSERT(ret_ok, "failed to add return value in the hashtable");
-    }
+    ASSERT(ok, "failed to add libcall in the hashtable");
 
     return true;
 }
@@ -396,7 +349,6 @@ parse_config(void)
     }
 
     init_libcalls_hashtable();
-    init_return_values_hashtable();
 
     std::vector<std::string>::iterator it;
     for (it = lines_list.begin(); it != lines_list.end(); it++) {
