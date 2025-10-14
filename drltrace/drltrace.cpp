@@ -239,6 +239,7 @@ lib_exit(void *wrapcxt, void *user_data)
         dr_fprintf(outf, "%s returned\n", name);
         return;
     }
+    dr_fprintf(outf, "Function %s exit\n", name);
     dr_fprintf(outf, "start get return value\n");
     ptr_uint_t retval =  NULL;
     void *drcontext = drwrap_get_drcontext(wrapcxt);
