@@ -235,6 +235,30 @@ lib_exit(void *wrapcxt, void *user_data)
 {
     const char *name = (const char *) user_data;
     // blacklist some apis that may lead to crash
+    void *drcontext = drwrap_get_drcontext(wrapcxt);
+    app_pc retaddr =  NULL;
+    DR_TRY_EXCEPT(drcontext, {
+        retaddr = drwrap_get_retaddr(wrapcxt);
+    }, { /* EXCEPT */
+        retaddr = NULL;
+    });
+    if (retaddr != NULL) {
+        mod = dr_lookup_module(retaddr);
+        // if (mod != NULL) {
+        //     bool from_exe = (mod->start == exe_start);
+        //     dr_free_module_data(mod);
+        //     if (!from_exe)
+        //         return;
+        // }
+    } else {
+        /* Nearly all of these cases should be things like KiUserCallbackDispatcher
+            * or other abnormal transitions.
+            * If the user really wants to see everything they can not pass
+            * -only_from_app.
+            */
+        return;
+    }
+
     if (strcmp(name, "RtlFreeHeap") == 0) {
         dr_fprintf(outf, "%s returned\n", name);
         return;
@@ -242,7 +266,6 @@ lib_exit(void *wrapcxt, void *user_data)
     dr_fprintf(outf, "Function %s exit\n", name);
     dr_fprintf(outf, "start get return value\n");
     ptr_uint_t retval =  NULL;
-    void *drcontext = drwrap_get_drcontext(wrapcxt);
     DR_TRY_EXCEPT(drcontext, {
         retval = (ptr_uint_t)drwrap_get_retval(wrapcxt);
     }, { /* EXCEPT */
