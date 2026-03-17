@@ -350,7 +350,7 @@ lib_exit(void *wrapcxt, void *user_data)
 
     if (mod != NULL)
         dr_free_module_data(mod);
-    dr_global_free(cd, sizeof(call_data_t));
+    thread_free(drcontext, cd, sizeof(call_data_t), HEAPSTAT_MISC);
 }
 
 /****************************************************************************
@@ -436,7 +436,7 @@ lib_entry(void *wrapcxt, DR_PARAM_INOUT void **user_data)
 
     /* Save arg values for printing OUT args in lib_exit */
     {
-        call_data_t *cd = (call_data_t *)dr_global_alloc(sizeof(call_data_t));
+        call_data_t *cd = (call_data_t *)thread_alloc(drcontext, sizeof(call_data_t), HEAPSTAT_MISC);
         cd->name = name;
         cd->num_saved = 0;
         if (op_max_args.get_value() > 0) {
