@@ -68,6 +68,14 @@ static file_t outf;
 /* Avoid exe exports, as on Linux many apps have a ton of global symbols. */
 static app_pc exe_start;
 
+#define MAX_SAVED_ARGS 16
+
+typedef struct {
+    const char *name;
+    ptr_uint_t arg_values[MAX_SAVED_ARGS];
+    uint num_saved;
+} call_data_t;
+
 /****************************************************************************
  * Arguments printing
  */
@@ -126,12 +134,12 @@ print_arg(void *drcontext, drsys_arg_t *arg)
     case DRSYS_TYPE_SIZE_T:       print_simple_value(arg, false); break;
     case DRSYS_TYPE_HMODULE:      print_simple_value(arg, false); break;
 #endif
-    // case DRSYS_TYPE_CSTRING:
-    //     print_string(drcontext, (void *)arg->value, false);
-    //     break;
-    // case DRSYS_TYPE_CWSTRING:
-    //     print_string(drcontext, (void *)arg->value, true);
-    //     break;
+    case DRSYS_TYPE_CSTRING:
+        print_string(drcontext, (void *)arg->value, false);
+        break;
+    case DRSYS_TYPE_CWSTRING:
+        print_string(drcontext, (void *)arg->value, true);
+        break;
     default: {
         if (arg->value == 0)
             dr_fprintf(outf, "<null>");
@@ -148,6 +156,67 @@ print_arg(void *drcontext, drsys_arg_t *arg)
               (arg->type_name == NULL ||
               TESTANY(DRSYS_PARAM_INLINED|DRSYS_PARAM_RETVAL, arg->mode)) ? "" : "*",
               arg->size);
+}
+
+typedef struct {
+    void *drcontext;
+    call_data_t *call_data;
+} out_arg_iter_data_t;
+
+static bool
+drlib_iter_out_arg_cb(drsys_arg_t *arg, void *user_data)
+{
+    out_arg_iter_data_t *data = (out_arg_iter_data_t *)user_data;
+    if (arg->ordinal == -1)
+        return true;
+    if (arg->ordinal >= op_max_args.get_value() ||
+        arg->ordinal >= (int)data->call_data->num_saved)
+        return false;
+    if (!TEST(DRSYS_PARAM_OUT, arg->mode))
+        return true; /* skip non-OUT args */
+
+    arg->value = data->call_data->arg_values[arg->ordinal];
+    arg->pre = false;
+
+    print_arg(data->drcontext, arg);
+    return true;
+}
+
+static void
+print_out_args(const char *name, void *drcontext, call_data_t *call_data)
+{
+    drmf_status_t res;
+    drsys_syscall_t *syscall;
+    std::vector<drsys_arg_t *> *args_vec;
+    out_arg_iter_data_t iter_data;
+    iter_data.drcontext = drcontext;
+    iter_data.call_data = call_data;
+
+    if (op_use_config.get_value()) {
+        args_vec = libcalls_search(name);
+        if (args_vec != NULL && args_vec->size() > 0) {
+            std::vector<drsys_arg_t*>::iterator it;
+            for (it = args_vec->begin(); it != args_vec->end(); ++it) {
+                drsys_arg_t *orig = *it;
+                if (orig->ordinal == -1 ||
+                    orig->ordinal >= op_max_args.get_value() ||
+                    orig->ordinal >= (int)call_data->num_saved)
+                    continue;
+                if (!TEST(DRSYS_PARAM_OUT, orig->mode))
+                    continue;
+                /* Make a local copy to avoid mutating shared config data */
+                drsys_arg_t arg_copy = *orig;
+                arg_copy.value = call_data->arg_values[orig->ordinal];
+                arg_copy.pre = false;
+                print_arg(drcontext, &arg_copy);
+            }
+            return;
+        }
+    }
+    res = drsys_name_to_syscall(name, &syscall);
+    if (res == DRMF_SUCCESS) {
+        res = drsys_iterate_arg_types(syscall, drlib_iter_out_arg_cb, &iter_data);
+    }
 }
 
 static bool
@@ -235,35 +304,34 @@ lib_exit(void *wrapcxt, void *user_data)
 {
     if (wrapcxt == NULL || user_data == NULL)
         return;
-    const char *name = (const char *) user_data;
+    call_data_t *cd = (call_data_t *)user_data;
+    const char *name = cd->name;
     ptr_uint_t retval = (ptr_uint_t)drwrap_get_retval(wrapcxt);
     void *drcontext = drwrap_get_drcontext(wrapcxt);
     thread_id_t tid = dr_get_thread_id(drcontext);
 
-    // Get module information for the function
+    /* Get module information for the function */
     const char *modname = NULL;
     app_pc func = drwrap_get_func(wrapcxt);
     module_data_t *mod = dr_lookup_module(func);
     if (mod != NULL)
         modname = dr_module_preferred_name(mod);
 
-    // Create argument structure for the return value
+    /* Create argument structure for the return value */
     drsys_arg_t ret_arg;
     memset(&ret_arg, 0, sizeof(ret_arg));
     ret_arg.value = retval;
     ret_arg.value64 = (uint64)retval;
-    ret_arg.ordinal = -1;  // Special ordinal for return value
+    ret_arg.ordinal = -1;
     ret_arg.mode = DRSYS_PARAM_RETVAL;
     ret_arg.pre = false;
     ret_arg.size = sizeof(ptr_uint_t);
     ret_arg.reg = DR_REG_NULL;
-
-    // Default fallback
     ret_arg.type = DRSYS_TYPE_VOID;
     ret_arg.type_name = "void";
     ret_arg.arg_name = "retval";
 
-    // Print thread ID and module!function name
+    /* Print thread ID and module!function name */
     if (tid != INVALID_THREAD_ID)
         dr_fprintf(outf, "~~%d~~ ", tid);
     else
@@ -271,14 +339,18 @@ lib_exit(void *wrapcxt, void *user_data)
     dr_fprintf(outf, "%s%s%s", modname == NULL ? "" : modname,
                modname == NULL ? "" : "!", name);
 
-    // Print the return value using existing print_arg function
+    /* Print the return value */
     print_arg(drcontext, &ret_arg);
+
+    /* Print OUT arguments with their post-call values */
+    if (op_max_args.get_value() > 0 && cd->num_saved > 0)
+        print_out_args(name, drcontext, cd);
 
     dr_fprintf(outf, "\n");
 
-    // Clean up module data
     if (mod != NULL)
         dr_free_module_data(mod);
+    dr_global_free(cd, sizeof(call_data_t));
 }
 
 /****************************************************************************
@@ -312,8 +384,10 @@ lib_entry(void *wrapcxt, DR_PARAM_INOUT void **user_data)
             if (mod != NULL) {
                 bool from_exe = (mod->start == exe_start);
                 dr_free_module_data(mod);
-                if (!from_exe)
+                if (!from_exe) {
+                    *user_data = NULL;
                     return;
+                }
             }
         } else {
             /* Nearly all of these cases should be things like KiUserCallbackDispatcher
@@ -321,6 +395,7 @@ lib_entry(void *wrapcxt, DR_PARAM_INOUT void **user_data)
              * If the user really wants to see everything they can not pass
              * -only_from_app.
              */
+            *user_data = NULL;
             return;
         }
     }
@@ -358,6 +433,27 @@ lib_entry(void *wrapcxt, DR_PARAM_INOUT void **user_data)
         }
     }
     dr_fprintf(outf, "\n");
+
+    /* Save arg values for printing OUT args in lib_exit */
+    {
+        call_data_t *cd = (call_data_t *)dr_global_alloc(sizeof(call_data_t));
+        cd->name = name;
+        cd->num_saved = 0;
+        if (op_max_args.get_value() > 0) {
+            uint max_save = op_max_args.get_value();
+            if (max_save > MAX_SAVED_ARGS)
+                max_save = MAX_SAVED_ARGS;
+            DR_TRY_EXCEPT(drcontext, {
+                for (uint i = 0; i < max_save; i++) {
+                    cd->arg_values[i] = (ptr_uint_t)drwrap_get_arg(wrapcxt, i);
+                    cd->num_saved = i + 1;
+                }
+            }, { /* EXCEPT */
+            });
+        }
+        *user_data = (void *)cd;
+    }
+
     if (mod != NULL)
         dr_free_module_data(mod);
 }
